@@ -16,13 +16,12 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.PluginRegistry.Registrar
 import org.json.JSONArray
-import org.json.JSONObject
 
 class GeofencingPlugin(context: Context, activity: Activity?) : MethodCallHandler {
     private val mContext = context
@@ -190,25 +189,54 @@ class GeofencingPlugin(context: Context, activity: Activity?) : MethodCallHandle
         }
 
         @JvmStatic
+        private fun removeAllGeofence(context: Context,
+                                      geofencingClient: GeofencingClient,
+                                      args: ArrayList<*>?,
+                                      result: Result) {
+            geofencingClient.removeGeofences(getGeofencePendingIndent(context, 0)).run {
+                addOnSuccessListener {
+                    result.success(true)
+                    clearGeofenceCache(context)
+                }
+                addOnFailureListener {
+                    result.error(it.toString(), null, null)
+                }
+            }
+        }
+
+        @JvmStatic
         private fun removeGeofenceFromCache(context: Context, id: String) {
             synchronized(sGeofenceCacheLock) {
-                var p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
-                var persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
+                val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
+                val persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
                 if (persistentGeofences == null) {
                     return
                 }
                 persistentGeofences.remove(id)
                 p.edit()
-                .remove(getPersistentGeofenceKey(id))
-                .putStringSet(PERSISTENT_GEOFENCES_IDS, persistentGeofences)
-                .apply()
+                        .remove(getPersistentGeofenceKey(id))
+                        .putStringSet(PERSISTENT_GEOFENCES_IDS, persistentGeofences)
+                        .apply()
             }
         }
 
         @JvmStatic
-        private fun getPersistentGeofenceKey(id: String): String {
-            return "persistent_geofence/" + id
+        private fun clearGeofenceCache(context: Context) {
+            synchronized(sGeofenceCacheLock) {
+                val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
+                val persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
+                p.edit().apply {
+                    remove(PERSISTENT_GEOFENCES_IDS)
+                    persistentGeofences?.let {
+                        it.forEach { id -> remove(getPersistentGeofenceKey(id)) }
+                    }
+                    apply()
+                }
+            }
         }
+
+        @JvmStatic
+        private fun getPersistentGeofenceKey(id: String) = "persistent_geofence/$id"
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -230,6 +258,10 @@ class GeofencingPlugin(context: Context, activity: Activity?) : MethodCallHandle
                                                                 mGeofencingClient,
                                                                 args,
                                                                 result)
+            "GeofencingPlugin.removeAllGeofence" -> removeAllGeofence(mContext,
+                                                                        mGeofencingClient,
+                                                                        args,
+                                                                        result)
             else -> result.notImplemented()
         }
     }

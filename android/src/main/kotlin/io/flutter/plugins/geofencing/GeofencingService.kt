@@ -79,6 +79,7 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
 
                 sBackgroundFlutterView!!.runFromBundle(args)
                 IsolateHolderService.setBackgroundFlutterView(sBackgroundFlutterView)
+                Log.i(TAG, "GeofencingService started")
             }
         }
         mBackgroundChannel = MethodChannel(sBackgroundFlutterView,
@@ -87,6 +88,7 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
     }
 
    override fun onMethodCall(call: MethodCall, result: Result) {
+       Log.i(TAG, "onMethodCall ${call.method}")
        when(call.method) {
             "GeofencingService.initialized" -> {
                 synchronized(sServiceStarted) {
@@ -115,7 +117,9 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
     }
 
     override fun onHandleWork(intent: Intent) {
+        Log.i(TAG, "handle intent")
         val callbackHandle = intent.getLongExtra(GeofencingPlugin.CALLBACK_HANDLE_KEY, 0)
+        Log.i(TAG, "callbackHandle: $callbackHandle");
         val geofencingEvent = GeofencingEvent.fromIntent(intent)
         if (geofencingEvent.hasError()) {
             Log.e(TAG, "Geofencing error: ${geofencingEvent.errorCode}")
@@ -127,25 +131,37 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
 
         // Get the geofences that were triggered. A single event can trigger
         // multiple geofences.
-        val triggeringGeofences = geofencingEvent.triggeringGeofences.map {
-            it.requestId
+        val triggeringGeofences: List<String>
+        triggeringGeofences = if (geofencingEvent.triggeringGeofences == null) {
+            listOf("ELNaBFvFwBAUXNGAYJVn")
+        } else {
+            geofencingEvent.triggeringGeofences.map {
+                it.requestId
+            }
         }
 
         val location = geofencingEvent.triggeringLocation
-        val locationList = listOf(location.latitude,
-                location.longitude)
+        val locationList = listOf(location.latitude, location.longitude)
         val geofenceUpdateList = listOf(callbackHandle,
                 triggeringGeofences,
                 locationList,
                 geofenceTransition)
 
+        Log.i(TAG, "intent parsed")
+        Log.i(TAG, "isServiceStarted ${sServiceStarted.get()}")
+
         synchronized(sServiceStarted) {
+            Log.i(TAG, "check service")
             if (!sServiceStarted.get()) {
                 // Queue up geofencing events while background isolate is starting
                 queue.add(geofenceUpdateList)
+                Log.i(TAG, "add to queuq")
             } else {
                 // Callback method name is intentionally left blank.
-                Handler(mContext.mainLooper).post { mBackgroundChannel.invokeMethod("", geofenceUpdateList) }
+                Handler(mContext.mainLooper).post {
+                    mBackgroundChannel.invokeMethod("", geofenceUpdateList)
+                }
+                Log.i(TAG, "post to channel")
             }
         }
     }

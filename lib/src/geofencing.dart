@@ -121,8 +121,11 @@ class GeofencingManager {
   ///
   /// Will throw an exception if called anywhere except for a geofencing
   /// callback.
-  static Future<void> demoteToBackground() async =>
-      await _background.invokeMethod('GeofencingService.demoteToBackground');
+  static Future<void> demoteToBackground() =>
+      _background.invokeMethod('GeofencingService.demoteToBackground');
+
+  static Future<void> removeAllGeofence() =>
+      _channel.invokeMethod('GeofencingPlugin.removeAllGeofence');
 
   /// Register for geofence events for a [GeofenceRegion].
   ///

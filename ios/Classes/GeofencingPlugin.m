@@ -42,6 +42,7 @@ static BOOL backgroundIsolateRun = NO;
 }
 
 - (void)handleMethodCall:(FlutterMethodCall *)call result:(FlutterResult)result {
+    NSLog(@"method call: %@", call.method);
   NSArray *arguments = call.arguments;
   if ([@"GeofencingPlugin.initializeService" isEqualToString:call.method]) {
     NSAssert(arguments.count == 1,
@@ -67,6 +68,8 @@ static BOOL backgroundIsolateRun = NO;
     result(@(YES));
   } else if ([@"GeofencingPlugin.removeGeofence" isEqualToString:call.method]) {
     result(@([self removeGeofence:arguments]));
+  } else if ([@"GeofencingPlugin.removeAllGeofence" isEqualToString:call.method]) {
+    result(@([self removeAllGeofence:arguments]));
   } else {
     result(FlutterMethodNotImplemented);
   }
@@ -87,6 +90,7 @@ static BOOL backgroundIsolateRun = NO;
 #pragma mark LocationManagerDelegate Methods
 - (void)locationManager:(CLLocationManager *)manager didEnterRegion:(CLRegion *)region {
   @synchronized(self) {
+    NSLog(@"geofencing: didEnterRegion");
     if (initialized) {
       [self sendLocationEvent:region eventType:kEnterEvent];
     } else {
@@ -101,6 +105,7 @@ static BOOL backgroundIsolateRun = NO;
 
 - (void)locationManager:(CLLocationManager *)manager didExitRegion:(CLRegion *)region {
   @synchronized(self) {
+    NSLog(@"geofencing: didExitRegion");
     if (initialized) {
       [self sendLocationEvent:region eventType:kExitEvent];
     } else {
@@ -133,7 +138,9 @@ static BOOL backgroundIsolateRun = NO;
 
 - (instancetype)init:(NSObject<FlutterPluginRegistrar> *)registrar {
   self = [super init];
+    NSLog(@"init plugin");
   NSAssert(self, @"super init cannot be nil");
+    
   _persistentState = [NSUserDefaults standardUserDefaults];
   _eventQueue = [[NSMutableArray alloc] init];
   _locationManager = [[CLLocationManager alloc] init];
@@ -155,8 +162,12 @@ static BOOL backgroundIsolateRun = NO;
 }
 
 - (void)startGeofencingService:(int64_t)handle {
+    NSLog(@"handle %lld", handle);
   [self setCallbackDispatcherHandle:handle];
   FlutterCallbackInformation *info = [FlutterCallbackCache lookupCallbackInformation:handle];
+    if (!info) {
+        NSLog(@"handle callback not found");
+    }
   NSAssert(info != nil, @"failed to find callback");
   NSString *entrypoint = info.callbackName;
   NSString *uri = info.callbackLibraryPath;
@@ -203,6 +214,14 @@ static BOOL backgroundIsolateRun = NO;
     }
   }
   return NO;
+}
+
+- (BOOL)removeAllGeofence:(NSArray *)arguments {
+  for (CLRegion *region in [self->_locationManager monitoredRegions]) {
+    [self->_locationManager stopMonitoringForRegion:region];
+    [self removeCallbackHandleForRegionId:region.identifier];
+  }
+  return YES;
 }
 
 - (int64_t)getCallbackDispatcherHandle {
