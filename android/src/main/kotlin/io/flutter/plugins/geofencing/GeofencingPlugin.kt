@@ -127,12 +127,10 @@ class GeofencingPlugin(context: Context, activity: Activity?) : MethodCallHandle
         @JvmStatic
         private fun addGeofenceToCache(context: Context, id: String, args: ArrayList<*>) {
             synchronized(sGeofenceCacheLock) {
-                var p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
-                var obj = JSONArray(args)
+                val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
+                val obj = JSONArray(args)
                 var persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
-                if (persistentGeofences == null) {
-                    persistentGeofences = HashSet<String>()
-                }
+                persistentGeofences = persistentGeofences?.toMutableSet() ?: mutableSetOf()
 
                 persistentGeofences.add(id)
                 context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
@@ -208,10 +206,8 @@ class GeofencingPlugin(context: Context, activity: Activity?) : MethodCallHandle
         private fun removeGeofenceFromCache(context: Context, id: String) {
             synchronized(sGeofenceCacheLock) {
                 val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
-                val persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
-                if (persistentGeofences == null) {
-                    return
-                }
+                var persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
+                persistentGeofences = persistentGeofences?.toMutableSet() ?: mutableSetOf()
                 persistentGeofences.remove(id)
                 p.edit()
                         .remove(getPersistentGeofenceKey(id))
